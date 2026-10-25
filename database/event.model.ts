@@ -27,6 +27,10 @@ const EventSchema = new Schema<IEvent>(
       required: [true, "Title is required"],
       trim: true,
       maxlength: [100, "Title cannot exceed 100 characters"],
+      validate: {
+        validator: (title: string) => generateSlug(title).length > 0,
+        message: "Title must contain at least one letter or number (a-z, 0-9)",
+      },
     },
     slug: {
       type: String,
@@ -110,7 +114,7 @@ const EventSchema = new Schema<IEvent>(
 );
 
 // Pre-save hook for slug generation and data normalization
-EventSchema.pre("save", function (next) {
+EventSchema.pre("save", function () {
   const event = this as IEvent;
 
   // Generate slug only if title changed or document is new
@@ -127,8 +131,6 @@ EventSchema.pre("save", function (next) {
   if (event.isModified("time")) {
     event.time = normalizeTime(event.time);
   }
-
-  next();
 });
 
 // Helper function to generate URL-friendly slug
@@ -148,6 +150,25 @@ function normalizeDate(dateString: string): string {
   if (isNaN(date.getTime())) {
     throw new Error("Invalid date format");
   }
+
+  const dateParts = dateString
+    .trim()
+    .match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[T\s])/);
+  if (dateParts) {
+    const [, year, month, day] = dateParts;
+    // Check the input's calendar date separately from timestamp timezone offsets.
+    const calendarDate = new Date(
+      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00Z`,
+    );
+    if (
+      calendarDate.getUTCFullYear() !== Number(year) ||
+      calendarDate.getUTCMonth() + 1 !== Number(month) ||
+      calendarDate.getUTCDate() !== Number(day)
+    ) {
+      throw new Error("Invalid date format");
+    }
+  }
+
   return date.toISOString().split("T")[0]; // Return YYYY-MM-DD format
 }
 
@@ -166,6 +187,9 @@ function normalizeTime(timeString: string): string {
   const period = match[4]?.toUpperCase();
 
   if (period) {
+    if (hours < 1 || hours > 12) {
+      throw new Error("Invalid time values");
+    }
     // Convert 12-hour to 24-hour format
     if (period === "PM" && hours !== 12) hours += 12;
     if (period === "AM" && hours === 12) hours = 0;
