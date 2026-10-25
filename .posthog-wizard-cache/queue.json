@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "runId": "2544b1ca-a6c7-40f7-b2a6-8365f1a6104b",
+  "tasks": [
+    {
+      "id": "9d2b03fb-3325-4eb7-946d-0da4dd13704c",
+      "type": "init",
+      "label": "Initialize PostHog",
+      "status": "done",
+      "dependsOn": [],
+      "inputs": {},
+      "attempts": 1,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:17.817Z",
+      "startedAt": "2026-10-25T15:35:42.269Z",
+      "handoff": {
+        "goals": "Ensure PostHog is initialized for the Next.js App Router application and that its environment configuration is present, without adding exception-capture work.",
+        "did": "No files were edited. The existing browser initialization in `instrumentation-client.ts` is valid for Next.js 16.4.3: it imports `posthog-js`, reads `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST`, provides the required development-only missing-key guard, and calls `posthog.init(...)` only when configured. `.env.local` has both exact keys present, confirmed through `check_env_keys`; Next.js loads this file automatically. `.env.example` already documents both keys with placeholders. The deployed Next.js server also has an existing `posthog-node` construction in `libs/posthog-ai.ts`, using the same configured environment variables; its only exported capture function has no in-project callers at present. No CSP was found in project application/config files, so no policy adjustment was required. This preserves existing initialization and analytics behavior for browser capture and the existing server client.",
+        "forNextAgent": "Browser init point: `instrumentation-client.ts`; it uses `posthog-js` with `NEXT_PUBLIC_POSTHOG_KEY` and optional `NEXT_PUBLIC_POSTHOG_HOST`, defaults `2025-05-24`, development debug, and an existing `capture_exceptions: true` setting. The capture-exceptions task should own any decision about that existing option and must not duplicate initialization. Server client: `libs/posthog-ai.ts`, constructed with `posthog-node` from the same variables; it is currently unused by project source. The shipped server is Next.js (`next build` / `next start` from root `package.json`). Environment arrives through Next.js automatic `.env.local` loading. No reverse proxy or CSP configuration exists currently.",
+        "filesTouched": [],
+        "evidence": "Read `package.json`, `instrumentation-client.ts`, `next.config.ts`, `.env.example`, `libs/posthog-ai.ts`, and root app files. `package.json` specifies Next.js 16.4.3 and build/start scripts. `check_env_keys` reported both `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` as present in `.env.local`, including a repeated final confirmation. Source searches found no CSP configuration and no callers of `captureAiGeneration`.",
+        "assumptions": "Assumed root `.env.local` is the environment file used for the local/deployed Next.js configuration; this follows Next.js conventions and is confirmed as present, but deployment-platform environment settings were not inspected.",
+        "conflict": "",
+        "reportSection": ""
+      },
+      "finishedAt": "2026-10-25T15:37:07.358Z"
+    },
+    {
+      "id": "b06d58bb-7f10-4276-9117-0f6268d9e994",
+      "type": "capture-exceptions",
+      "label": "Capture uncaught errors",
+      "status": "done",
+      "dependsOn": [
+        "9d2b03fb-3325-4eb7-946d-0da4dd13704c"
+      ],
+      "inputs": {},
+      "attempts": 1,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:21.813Z",
+      "startedAt": "2026-10-25T15:37:11.598Z",
+      "handoff": {
+        "goals": "Ensure uncaught and framework-caught errors reach PostHog from both browser and Next.js server runtimes, using the SDK/framework-supported global mechanisms rather than scattered manual handlers.",
+        "did": "Added `app/global-error.tsx` as the App Router global error boundary; it reports errors swallowed by Next.js through `posthog.captureException(error)` and provides a retry action. Added root `instrumentation.ts` with Next.js `onRequestError`; for Node.js requests it obtains the shared server client, recovers the PostHog distinct ID from the analytics cookie when available, captures the exception, and awaits `flush()` for request-lifecycle delivery. Updated `libs/posthog-ai.ts` to expose its existing singleton server client and enable Node SDK exception autocapture, with `flushAt: 1` and `flushInterval: 0`; existing AI capture continues to use the same client. Browser global unhandled exceptions remain covered by the pre-existing `capture_exceptions: true` in `instrumentation-client.ts`. These mechanisms feed PostHog Error Tracking exception views and preserve linkage to the browser person where a PostHog cookie is available.",
+        "forNextAgent": "Error tracking is now covered once per runtime: browser SDK exception autocapture plus the Next.js global boundary, and Node SDK exception autocapture plus `onRequestError`. `posthog-node` was already declared in the root manifest, so nothing was installed. The app has no Edge-specific PostHog server capture; the hook intentionally gates on `NEXT_RUNTIME === \"nodejs\"` because `posthog-node` is the documented Node runtime path.",
+        "filesTouched": [
+          "libs/posthog-ai.ts",
+          "instrumentation.ts",
+          "app/global-error.tsx"
+        ],
+        "evidence": "Ran `pnpm build`. Next.js 16.4.3 compiled successfully, completed TypeScript checking, collected page data, and generated all static pages successfully.",
+        "assumptions": "Assumed deployed server-side Next.js execution uses the Node.js runtime, consistent with the existing `posthog-node` integration and `next start` script. No explicit Edge runtime files were present in the scoped entry-point inspection.",
+        "conflict": "",
+        "reportSection": ""
+      },
+      "finishedAt": "2026-10-25T15:45:04.169Z"
+    },
+    {
+      "id": "d78d7132-8199-48e1-8688-230471dedecc",
+      "type": "credentials",
+      "label": "Collect upload credentials",
+      "status": "not needed",
+      "dependsOn": [],
+      "inputs": {
+        "skillId": "error-tracking-upload-source-maps-nextjs",
+        "displayName": "Next.js"
+      },
+      "attempts": 1,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:21.821Z",
+      "startedAt": "2026-10-25T15:35:42.280Z",
+      "skipReason": "agent-not-needed",
+      "notNeededReason": "user-declined",
+      "handoff": {
+        "goals": "Store the Next.js source-map upload credentials in the project environment and document the exact variable-name contract for subsequent configure and CI tasks.",
+        "did": "Installed and read the requested `error-tracking-upload-source-maps-nextjs` skill, reviewed its authoritative Next.js reference, and read `next.config.ts`. The config currently has no source-map credential references. The secure personal API key prompt was dismissed, so no credential was available and I intentionally did not create a partial `.env` or `.env.example` setup. The settled Next.js bundler-plugin contract is `POSTHOG_API_KEY`, `POSTHOG_PROJECT_ID`, and `NEXT_PUBLIC_POSTHOG_HOST`. A project-wide env-key check found no existing env file containing the SDK or upload keys; per the skill, the env target would therefore be `.env`.",
+        "forNextAgent": "The user must create a personal API key using the “Source map upload” preset at `https://us.posthog.com/settings/user-api-keys`, then set `POSTHOG_API_KEY`, `POSTHOG_PROJECT_ID`, and `NEXT_PUBLIC_POSTHOG_HOST` in `.env`. `POSTHOG_PROJECT_ID` should be project ID 687151 and `NEXT_PUBLIC_POSTHOG_HOST` should be the PostHog UI/API host used by the Next.js upload plugin. The configure and CI tasks must use these exact names; do not switch to `POSTHOG_CLI_*` because this Next.js integration uses `@posthog/nextjs-config`, not direct CLI upload. `.env.example` still needs placeholder-only entries for the same three names once credential setup is resumed.",
+        "filesTouched": [],
+        "evidence": "Read `next.config.ts` and confirmed it contains no PostHog upload env references. Read the installed skill and `references/nextjs.md`, which specifies the Next.js plugin contract. `check_env_keys` reported all of `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `POSTHOG_API_KEY`, and `POSTHOG_PROJECT_ID` missing with no env-file locations. The secure ask returned `user-cancelled`.",
+        "assumptions": "Assumed the parallel configure task will follow the authoritative Next.js reference and use `@posthog/nextjs-config`. No personal API key value was available or inspected.",
+        "conflict": "Credential setup could not proceed because the user dismissed the required secure personal API key prompt.",
+        "reportSection": ""
+      },
+      "finishedAt": "2026-10-25T15:47:44.150Z"
+    },
+    {
+      "id": "c9805f70-d7f8-49b9-956d-6ec11a4dd4a0",
+      "type": "configure",
+      "label": "Configure source-map uploads",
+      "status": "running",
+      "dependsOn": [
+        "b06d58bb-7f10-4276-9117-0f6268d9e994"
+      ],
+      "inputs": {
+        "skillId": "error-tracking-upload-source-maps-nextjs",
+        "displayName": "Next.js"
+      },
+      "attempts": 1,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:27.305Z",
+      "startedAt": "2026-10-25T15:45:11.466Z"
+    },
+    {
+      "id": "9876675e-076b-4ed9-8db8-166117d5a928",
+      "type": "wire-ci",
+      "label": "Upload source maps in CI",
+      "status": "pending",
+      "dependsOn": [
+        "c9805f70-d7f8-49b9-956d-6ec11a4dd4a0",
+        "d78d7132-8199-48e1-8688-230471dedecc"
+      ],
+      "inputs": {
+        "skillId": "error-tracking-upload-source-maps-nextjs",
+        "displayName": "Next.js"
+      },
+      "attempts": 0,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:30.410Z"
+    },
+    {
+      "id": "a00d13ee-90d1-4143-b6c0-e63918bfce80",
+      "type": "verify",
+      "label": "Verify error tracking build",
+      "status": "pending",
+      "dependsOn": [
+        "b06d58bb-7f10-4276-9117-0f6268d9e994",
+        "c9805f70-d7f8-49b9-956d-6ec11a4dd4a0",
+        "d78d7132-8199-48e1-8688-230471dedecc"
+      ],
+      "inputs": {
+        "skillId": "error-tracking-upload-source-maps-nextjs",
+        "displayName": "Next.js"
+      },
+      "attempts": 0,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:32.991Z"
+    },
+    {
+      "id": "8fb2ba04-e93a-455e-881d-2e78ddaf29e9",
+      "type": "report",
+      "label": "Report error-tracking setup",
+      "status": "pending",
+      "dependsOn": [
+        "a00d13ee-90d1-4143-b6c0-e63918bfce80",
+        "9876675e-076b-4ed9-8db8-166117d5a928"
+      ],
+      "inputs": {},
+      "attempts": 0,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:35.692Z"
+    },
+    {
+      "id": "5b9ce65b-687b-49f0-ba9c-80a5afe1005a",
+      "type": "test-setup",
+      "label": "Offer an error test",
+      "status": "pending",
+      "dependsOn": [
+        "8fb2ba04-e93a-455e-881d-2e78ddaf29e9"
+      ],
+      "inputs": {
+        "skillId": "error-tracking-upload-source-maps-nextjs",
+        "displayName": "Next.js"
+      },
+      "attempts": 0,
+      "maxAttempts": 2,
+      "enqueuedBy": "orchestrator",
+      "createdAt": "2026-10-25T15:35:38.209Z"
+    }
+  ]
+}
